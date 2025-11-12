@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>eb8f9493-8e5f-4f49-95ce-0bf639dddbd5</UserSecretsId>
-    <!-- Suppress NU1608 until Pomelo.EntityFrameworkCore.MySql releases 10.0 compatible version -->
-    <NoWarn>$(NoWarn);NU1608</NoWarn>
+    <!-- Suppress NU1608 and NU1107: Pomelo.EntityFrameworkCore.MySql 9.0.0 not yet compatible with .NET 10, but still included for future MySQL support -->
+    <NoWarn>$(NoWarn);NU1608;NU1107</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
