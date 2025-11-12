@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -109,17 +110,34 @@ public class StorageConfigurationTests
                 ["Storage:ConnectionString"] = $"Data Source={dbPath}",
                 ["Storage:SeedTestData"] = "false"
             });
-            var context = serviceProvider.GetRequiredService<PrivatekonomyContext>();
-            await context.Database.EnsureCreatedAsync();
-
-            context.Categories.Add(new Core.Models.Category
+            try
             {
-                Name = "Test Category",
-                Color = "#FF0000",
-                TaxRelated = false,
-                CreatedAt = DateTime.UtcNow
-            });
-            await context.SaveChangesAsync();
+                var context = serviceProvider.GetRequiredService<PrivatekonomyContext>();
+                await using (context)
+                {
+                    await context.Database.EnsureCreatedAsync();
+
+                    context.Categories.Add(new Core.Models.Category
+                    {
+                        Name = "Test Category",
+                        Color = "#FF0000",
+                        TaxRelated = false,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                    await context.SaveChangesAsync();
+                }
+            }
+            finally
+            {
+                if (serviceProvider is IAsyncDisposable asyncDisposable)
+                {
+                    await asyncDisposable.DisposeAsync();
+                }
+                else if (serviceProvider is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+            }
         }
 
         // Act - Retrieve data with new context
@@ -130,19 +148,51 @@ public class StorageConfigurationTests
                 ["Storage:ConnectionString"] = $"Data Source={dbPath}",
                 ["Storage:SeedTestData"] = "false"
             });
-            var context = serviceProvider.GetRequiredService<PrivatekonomyContext>();
-            var category = await context.Categories.FirstOrDefaultAsync(c => c.Name == "Test Category");
+            try
+            {
+                var context = serviceProvider.GetRequiredService<PrivatekonomyContext>();
+                await using (context)
+                {
+                    var category = await context.Categories.FirstOrDefaultAsync(c => c.Name == "Test Category");
 
-            // Assert
-            Assert.NotNull(category);
-            Assert.Equal("Test Category", category.Name);
-            Assert.Equal("#FF0000", category.Color);
+                    // Assert
+                    Assert.NotNull(category);
+                    Assert.Equal("Test Category", category.Name);
+                    Assert.Equal("#FF0000", category.Color);
+                }
+            }
+            finally
+            {
+                if (serviceProvider is IAsyncDisposable asyncDisposable)
+                {
+                    await asyncDisposable.DisposeAsync();
+                }
+                else if (serviceProvider is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+            }
         }
 
         // Cleanup
         if (File.Exists(dbPath))
         {
-            File.Delete(dbPath);
+            SqliteConnection.ClearAllPools();
+            
+            int retries = 3;
+            while (retries > 0)
+            {
+                try
+                {
+                    File.Delete(dbPath);
+                    break;
+                }
+                catch (IOException) when (retries > 1)
+                {
+                    System.Threading.Thread.Sleep(100);
+                    retries--;
+                }
+            }
         }
     }
 

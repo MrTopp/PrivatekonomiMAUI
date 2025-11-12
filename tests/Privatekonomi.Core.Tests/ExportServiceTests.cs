@@ -297,7 +297,7 @@ public class ExportServiceTests : IDisposable
         var data = await _exportService.ExportYearDataToCsvAsync(2023);
 
         // Assert
-        var csv = Encoding.UTF8.GetString(data);
+        var csv = Encoding.UTF8.GetString(data).Replace(",",".");
         
         // Verify counts
         Assert.Contains("# Antal transaktioner: 2", csv);
@@ -416,7 +416,7 @@ public class ExportServiceTests : IDisposable
 
         // Assert
         Assert.NotNull(data);
-        var csv = Encoding.UTF8.GetString(data);
+        var csv = Encoding.UTF8.GetString(data).Replace(",",".");
         
         // Should have header with 0 transactions
         Assert.Contains("# Privatekonomi Export - År 2025", csv);

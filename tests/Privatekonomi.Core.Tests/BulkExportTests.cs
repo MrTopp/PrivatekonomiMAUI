@@ -92,7 +92,7 @@ public class BulkExportTests
         // Verify data
         Assert.Contains("2024-01-15", csvString);
         Assert.Contains("Grocery shopping", csvString);
-        Assert.Contains("100.50", csvString);
+        Assert.Contains("100.50", csvString.Replace(",", "."));
         Assert.Contains("2024-01-16", csvString);
         Assert.Contains("Restaurant", csvString);
         

@@ -202,8 +202,83 @@ public class JsonFilePersistenceService : IDataPersistenceService
                 await context.SaveChangesAsync();
             }
             
+            // Clear navigation properties to avoid duplicate tracking of related entities
+            // Navigation properties may have been serialized, causing duplicate instances
+            ClearNavigationProperties(entities);
+            
             await dbSet.AddRangeAsync(entities);
             await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Clears navigation properties from deserialized entities to avoid duplicate tracking.
+    /// When entities are serialized with their navigation properties, deserializing creates
+    /// duplicate instances that EF Core cannot track.
+    /// </summary>
+    private void ClearNavigationProperties<T>(List<T> entities) where T : class
+    {
+        if (entities == null || entities.Count == 0)
+        {
+            return;
+        }
+
+        var properties = typeof(T).GetProperties();
+        foreach (var entity in entities)
+        {
+            foreach (var property in properties)
+            {
+                // Skip if not writable or if it's a primitive type
+                if (!property.CanWrite || property.PropertyType.IsPrimitive || 
+                    property.PropertyType == typeof(string) || 
+                    property.PropertyType == typeof(decimal) ||
+                    property.PropertyType == typeof(DateTime) ||
+                    property.PropertyType == typeof(DateTime?))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var value = property.GetValue(entity);
+                    if (value != null)
+                    {
+                        // Check if it's a collection property
+                        if (typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType) &&
+                            property.PropertyType != typeof(string))
+                        {
+                            // Create a new empty collection of the same type
+                            var collectionType = property.PropertyType;
+                            if (collectionType.IsInterface)
+                            {
+                                // If it's an interface like ICollection<T>, create a List<T>
+                                var genericArgs = collectionType.GetGenericArguments();
+                                if (genericArgs.Length > 0)
+                                {
+                                    var listType = typeof(List<>).MakeGenericType(genericArgs);
+                                    var newCollection = Activator.CreateInstance(listType);
+                                    property.SetValue(entity, newCollection);
+                                }
+                            }
+                            else
+                            {
+                                // For concrete collection types, create a new instance
+                                var newCollection = Activator.CreateInstance(collectionType);
+                                property.SetValue(entity, newCollection);
+                            }
+                        }
+                        else if (property.PropertyType.IsClass)
+                        {
+                            // Set reference properties to null
+                            property.SetValue(entity, null);
+                        }
+                    }
+                }
+                catch
+                {
+                    // Skip any properties that fail to clear
+                }
+            }
         }
     }
 }

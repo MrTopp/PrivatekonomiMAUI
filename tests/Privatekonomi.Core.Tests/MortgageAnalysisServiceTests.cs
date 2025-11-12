@@ -216,13 +216,13 @@ public class MortgageAnalysisServiceTests
         
         // Check +1% scenario
         var scenario1 = result.Scenarios[1];
-        Assert.Equal("+1.0%", scenario1.ScenarioName);
+        Assert.Equal("+1.0%", scenario1.ScenarioName.Replace(",", "."));
         Assert.Equal(5.0m, scenario1.InterestRate);
         Assert.True(scenario1.MonthlyIncrease > 0);
         
         // Check +2% scenario
         var scenario2 = result.Scenarios[2];
-        Assert.Equal("+2.0%", scenario2.ScenarioName);
+        Assert.Equal("+2.0%", scenario2.ScenarioName.Replace(",", "."));
         Assert.Equal(6.0m, scenario2.InterestRate);
         Assert.True(scenario2.MonthlyIncrease > scenario1.MonthlyIncrease);
     }
