@@ -23,21 +23,21 @@
             <DataAnnotationsValidator />
             
             <MudTextField Label="E-post" 
-                          @bind-Value="Input.Email" 
-                          For="@(() => Input.Email)"
+                          @bind-Value="Input!.Email" 
+                          For="@(() => Input!.Email)"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
                           Class="mb-4" />
             
             <MudTextField Label="Lösenord" 
-                          @bind-Value="Input.Password" 
-                          For="@(() => Input.Password)"
+                          @bind-Value="Input!.Password" 
+                          For="@(() => Input!.Password)"
                           InputType="InputType.Password"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
                           Class="mb-4" />
             
-            <MudCheckBox @bind-Value="Input.RememberMe" Label="Kom ihåg mig" Class="mb-4" />
+            <MudCheckBox @bind-Value="Input!.RememberMe" Label="Kom ihåg mig" Class="mb-4" />
             
             <MudButton ButtonType="ButtonType.Submit" 
                        Variant="Variant.Filled" 
@@ -56,15 +56,22 @@
 
 @code {
     [SupplyParameterFromForm]
-    private InputModel Input { get; set; } = new();
+    private InputModel? Input { get; set; }
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
     private string? errorMessage;
 
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+    }
+
     private async Task LoginUser()
     {
+        if (Input is null) return;
+
         var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
 
         if (result.Succeeded)

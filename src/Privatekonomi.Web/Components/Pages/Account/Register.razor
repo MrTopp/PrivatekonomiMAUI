@@ -24,37 +24,37 @@
             <DataAnnotationsValidator />
             
             <MudTextField Label="Förnamn" 
-                          @bind-Value="Input.FirstName" 
-                          For="@(() => Input.FirstName)"
+                          @bind-Value="Input!.FirstName" 
+                          For="@(() => Input!.FirstName)"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
                           Class="mb-4" />
             
             <MudTextField Label="Efternamn" 
-                          @bind-Value="Input.LastName" 
-                          For="@(() => Input.LastName)"
+                          @bind-Value="Input!.LastName" 
+                          For="@(() => Input!.LastName)"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
                           Class="mb-4" />
             
             <MudTextField Label="E-post" 
-                          @bind-Value="Input.Email" 
-                          For="@(() => Input.Email)"
+                          @bind-Value="Input!.Email" 
+                          For="@(() => Input!.Email)"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
                           Class="mb-4" />
             
             <MudTextField Label="Lösenord" 
-                          @bind-Value="Input.Password" 
-                          For="@(() => Input.Password)"
+                          @bind-Value="Input!.Password" 
+                          For="@(() => Input!.Password)"
                           InputType="InputType.Password"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
                           Class="mb-4" />
             
             <MudTextField Label="Bekräfta lösenord" 
-                          @bind-Value="Input.ConfirmPassword" 
-                          For="@(() => Input.ConfirmPassword)"
+                          @bind-Value="Input!.ConfirmPassword" 
+                          For="@(() => Input!.ConfirmPassword)"
                           InputType="InputType.Password"
                           Variant="Variant.Outlined"
                           Margin="Margin.Dense"
@@ -77,12 +77,19 @@
 
 @code {
     [SupplyParameterFromForm]
-    private InputModel Input { get; set; } = new();
+    private InputModel? Input { get; set; }
 
     private string? errorMessage;
 
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+    }
+
     private async Task RegisterUser()
     {
+        if (Input is null) return;
+
         var user = new ApplicationUser
         {
             UserName = Input.Email,

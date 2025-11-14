@@ -66,12 +66,12 @@
                 </MudItem>
 
                 <MudItem xs="12" md="6">
-                    <MudSelect @bind-Value="_selectedInstitution" 
+                    <MudSelect Value="_selectedInstitution" 
+                              ValueChanged="OnInstitutionChanged"
                               Label="Bank/Institution" 
                               aria-label="Välj bank eller institution"
                               Clearable="true"
-                              T="string"
-                              ValueChanged="OnInstitutionChanged">
+                              T="string">
                         @foreach (var bank in BankRegistry.SupportedBanks)
                         {
                             <MudSelectItem Value="@bank.Name">
