@@ -18,7 +18,7 @@
 @inject IDialogService DialogService
 @implements IDisposable
 
-<MudThemeProvider @ref="@_mudThemeProvider" Theme="@_theme" @bind-IsDarkMode="@_isDarkMode" />
+<MudThemeProvider @ref="@_mudThemeProvider" Theme="@_theme" IsDarkMode="@_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -196,6 +196,7 @@
     {
         if (firstRender && _mudThemeProvider != null)
         {
+            // Initialize theme - critical for proper rendering
             try
             {
                 // Get the initial theme that was already applied in the head script
@@ -209,7 +210,15 @@
                 }
                 
                 ThemeService.IsDarkMode = _isDarkMode;
-                
+            }
+            catch
+            {
+                // If theme initialization fails, keep default (light mode)
+            }
+            
+            // Initialize view density
+            try
+            {
                 // Get the initial view density that was already applied in the head script
                 _isCompactView = await JSRuntime.InvokeAsync<bool>("viewDensityManager.getInitialViewDensity");
                 
@@ -232,17 +241,25 @@
                 }
                 
                 ViewDensityService.ViewDensity = _isCompactView ? ViewDensity.Compact : ViewDensity.Spacious;
-                
-                // Initialize keyboard shortcuts
-                var objRef = DotNetObjectReference.Create(this);
-                await JSRuntime.InvokeVoidAsync("keyboardShortcuts.init", objRef);
-                
-                StateHasChanged();
             }
             catch
             {
-                // Ignore JS interop errors on first render
+                // If view density initialization fails, keep default (spacious)
             }
+            
+            // Initialize keyboard shortcuts - separate try block to ensure this always runs
+            try
+            {
+                var objRef = DotNetObjectReference.Create(this);
+                await JSRuntime.InvokeVoidAsync("keyboardShortcuts.init", objRef);
+            }
+            catch
+            {
+                // Ignore keyboard shortcuts errors - not critical for basic functionality
+            }
+            
+            // Always call StateHasChanged to ensure UI updates with loaded preferences
+            StateHasChanged();
         }
     }
 

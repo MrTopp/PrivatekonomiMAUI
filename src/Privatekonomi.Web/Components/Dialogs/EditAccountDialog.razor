@@ -66,9 +66,22 @@
                 </MudItem>
 
                 <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="_account.Institution" 
-                                  Label="Bank/Institution" 
-                                  aria-label="Ange bank eller institution" />
+                    <MudSelect @bind-Value="_selectedInstitution" 
+                              Label="Bank/Institution" 
+                              aria-label="Välj bank eller institution"
+                              Clearable="true"
+                              T="string"
+                              ValueChanged="OnInstitutionChanged">
+                        @foreach (var bank in BankRegistry.SupportedBanks)
+                        {
+                            <MudSelectItem Value="@bank.Name">
+                                <div class="d-flex align-center">
+                                    <div style="width: 16px; height: 16px; background-color: @bank.ColorHex; border-radius: 2px; margin-right: 8px;"></div>
+                                    @bank.Name
+                                </div>
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
                 </MudItem>
 
                 <MudItem xs="12" md="6">
@@ -159,6 +172,7 @@
     private BankSource _account = new();
     private DateTime? _openedDate;
     private DateTime? _closedDate;
+    private string? _selectedInstitution;
 
     protected override void OnParametersSet()
     {
@@ -187,6 +201,20 @@
 
         _openedDate = Account.OpenedDate;
         _closedDate = Account.ClosedDate;
+        _selectedInstitution = Account.Institution;
+    }
+    
+    private void OnInstitutionChanged(string? institution)
+    {
+        _selectedInstitution = institution;
+        _account.Institution = institution;
+        
+        // Auto-set color based on selected bank
+        var bankColor = BankRegistry.GetBankColor(institution);
+        if (!string.IsNullOrEmpty(bankColor))
+        {
+            _account.Color = bankColor;
+        }
     }
 
     private async Task Submit()

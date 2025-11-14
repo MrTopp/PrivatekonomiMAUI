@@ -16,10 +16,16 @@ if (builder.Environment.IsDevelopment() || string.Equals(builder.Environment.Env
 var isRaspberryPi = Environment.GetEnvironmentVariable("PRIVATEKONOMI_RASPBERRY_PI") == "true";
 if (isRaspberryPi)
 {
-    // Explicitly configure Kestrel to listen on 0.0.0.0 for network access
-    // This overrides any localhost-only bindings from Aspire
-    var port = Environment.GetEnvironmentVariable("PORT") ?? "5277";
-    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+    // When running under Aspire, it manages the ports via WithHttpEndpoint
+    // But Aspire binds to localhost by default, so we need to override this
+    // We configure Kestrel AFTER AddServiceDefaults to ensure our binding takes precedence
+    builder.WebHost.ConfigureKestrel(serverOptions =>
+    {
+        // Listen on all network interfaces (0.0.0.0) for Raspberry Pi network access
+        // Get port from Aspire's PORT env var, or fall back to configuration, or default to 5277
+        var port = int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var p) ? p : 5277;
+        serverOptions.ListenAnyIP(port);
+    });
 }
 
 // Add Aspire service defaults

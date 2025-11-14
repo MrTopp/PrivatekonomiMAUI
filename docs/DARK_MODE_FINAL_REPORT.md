@@ -244,7 +244,7 @@ Deletions: -4 lines
 
 Enligt [MudBlazor Dark Mode Documentation](https://mudblazor.com/features/darkmode):
 
-✅ Använder `MudThemeProvider` med `@bind-IsDarkMode`
+✅ Använder `MudThemeProvider` med `IsDarkMode` (envägs-binding för att förhindra race conditions)
 ✅ Definierar custom `PaletteDark`
 ✅ Använder `GetSystemDarkModeAsync()` för system preference
 ✅ Persisterar tema-val mellan sessioner

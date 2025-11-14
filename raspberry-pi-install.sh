@@ -238,8 +238,8 @@ publish_application() {
     log_section "Publicerar applikation för produktion"
     
     local publish_dir="$INSTALL_DIR/publish"
-    # Define the list of components to publish - used for both publishing and validation
-    local publish_components=("AppHost" "Web" "Api")
+    # Only publish Web and API - no Aspire AppHost needed for production on Raspberry Pi
+    local publish_components=("Web" "Api")
     
     # Check if already published
     if [ -d "$publish_dir" ]; then
@@ -257,19 +257,6 @@ publish_application() {
     log_info "Publicerar för linux-arm64 med self-contained..."
     
     cd "$INSTALL_DIR"
-    
-    # Publish AppHost (Aspire orchestrator)
-    log_info "Publicerar Privatekonomi.AppHost..."
-    if ! dotnet publish src/Privatekonomi.AppHost/Privatekonomi.AppHost.csproj \
-        --runtime linux-arm64 \
-        --self-contained \
-        --configuration Release \
-        -o "$publish_dir/AppHost" \
-        /p:PublishTrimmed=false \
-        /p:PublishSingleFile=false; then
-        log_error "Misslyckades att publicera Privatekonomi.AppHost"
-        return 1
-    fi
     
     # Publish Web
     log_info "Publicerar Privatekonomi.Web..."
@@ -297,12 +284,7 @@ publish_application() {
         return 1
     fi
     
-    # Ensure all publish directories exist before copying files
-    # While dotnet publish with -o should create directories, this validation serves as:
-    # 1. Safety net for edge cases (filesystem issues, permissions, disk space)
-    # 2. Clear diagnostics if directories are missing
-    # 3. Automatic recovery by creating missing directories
-    # This addresses reported issue where AppHost folder was missing during publish
+    # Ensure all publish directories exist
     log_info "Kontrollerar publicerade kataloger..."
     
     for dir in "${publish_components[@]}"; do
@@ -319,10 +301,6 @@ publish_application() {
     # Copy appsettings to publish directories
     log_info "Kopierar konfigurationsfiler..."
     
-    if [ -f "src/Privatekonomi.AppHost/appsettings.Production.json" ]; then
-        cp "src/Privatekonomi.AppHost/appsettings.Production.json" "$publish_dir/AppHost/"
-    fi
-    
     if [ -f "src/Privatekonomi.Web/appsettings.Production.json" ]; then
         cp "src/Privatekonomi.Web/appsettings.Production.json" "$publish_dir/Web/"
     fi
@@ -333,6 +311,7 @@ publish_application() {
     
     log_success "Applikation publicerad till: $publish_dir"
     log_info "Publicerade binärer är optimerade för ARM64 och inkluderar alla beroenden"
+    log_info "Web och API körs som separata tjänster utan Aspire-orkestrering"
 }
 
 # Create data directory and configuration
@@ -426,30 +405,6 @@ EOF
     }
   },
   "Urls": "http://0.0.0.0:$API_PORT",
-  "AllowedHosts": "*"
-}
-EOF
-    
-    # Create appsettings.Production.json for AppHost (Aspire Dashboard)
-    local apphost_config="$INSTALL_DIR/src/Privatekonomi.AppHost/appsettings.Production.json"
-    log_info "Skapar $apphost_config..."
-    
-    cat > "$apphost_config" << EOF
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning",
-      "Aspire.Hosting": "Information"
-    }
-  },
-  "Kestrel": {
-    "Endpoints": {
-      "Http": {
-        "Url": "http://0.0.0.0:$DEFAULT_PORT"
-      }
-    }
-  },
   "AllowedHosts": "*"
 }
 EOF
@@ -647,11 +602,6 @@ upstream privatekonomi_api {
     keepalive 32;
 }
 
-upstream privatekonomi_dashboard {
-    server localhost:$DEFAULT_PORT;
-    keepalive 32;
-}
-
 # Redirect HTTP to HTTPS (uncomment after SSL is configured)
 # server {
 #     listen 80;
@@ -662,9 +612,9 @@ upstream privatekonomi_dashboard {
 
 # Main server block (HTTP - change to 443 with SSL)
 server {
-    listen 80;
-    listen [::]:80;
-    server_name $server_name;
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name $server_name _;
     
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -717,22 +667,6 @@ server {
         error_page 502 503 504 /50x.html;
     }
     
-    # Aspire Dashboard (optional - comment out in production)
-    location /aspire/ {
-        proxy_pass http://privatekonomi_dashboard/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection keep-alive;
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Better error handling
-        proxy_intercept_errors on;
-        error_page 502 503 504 /50x.html;
-    }
-    
     # Error page
     location = /50x.html {
         root /usr/share/nginx/html;
@@ -752,6 +686,13 @@ EOF
     log_info "Aktiverar Privatekonomi-sajt..."
     sudo ln -sf /etc/nginx/sites-available/privatekonomi /etc/nginx/sites-enabled/
     
+    # Disable default Nginx site to prevent welcome page from showing
+    if [ -f "/etc/nginx/sites-enabled/default" ] || [ -L "/etc/nginx/sites-enabled/default" ]; then
+        log_info "Inaktiverar Nginx standardsida..."
+        sudo rm -f /etc/nginx/sites-enabled/default
+        log_success "Nginx standardsida inaktiverad"
+    fi
+    
     # Test configuration
     if sudo nginx -t; then
         log_success "Nginx-konfiguration är giltig"
@@ -765,7 +706,6 @@ EOF
         echo -e "${GREEN}Nginx Reverse Proxy är nu aktivt:${NC}"
         echo -e "  ${YELLOW}HTTP:${NC} http://$server_name"
         echo -e "  ${YELLOW}API:${NC} http://$server_name/api/"
-        echo -e "  ${YELLOW}Aspire Dashboard:${NC} http://$server_name/aspire/"
         echo -e ""
         echo -e "${BLUE}Nästa steg:${NC}"
         echo -e "  1. Konfigurera SSL/HTTPS med: ${YELLOW}sudo certbot --nginx -d $server_name${NC}"
@@ -867,6 +807,14 @@ configure_letsencrypt() {
     sudo certbot --nginx -d "$domain_name" --non-interactive --agree-tos --email "$email" --redirect
     
     if [ $? -eq 0 ]; then
+        # Disable default Nginx site to prevent welcome page from showing
+        if [ -f "/etc/nginx/sites-enabled/default" ] || [ -L "/etc/nginx/sites-enabled/default" ]; then
+            log_info "Inaktiverar Nginx standardsida..."
+            sudo rm -f /etc/nginx/sites-enabled/default
+            sudo systemctl reload nginx
+            log_success "Nginx standardsida inaktiverad"
+        fi
+        
         log_success "Let's Encrypt SSL konfigurerat framgångsrikt"
         
         # Setup auto-renewal
@@ -928,24 +876,19 @@ upstream privatekonomi_api {
     keepalive 32;
 }
 
-upstream privatekonomi_dashboard {
-    server localhost:$DEFAULT_PORT;
-    keepalive 32;
-}
-
 # Redirect HTTP to HTTPS
 server {
-    listen 80;
-    listen [::]:80;
-    server_name $server_ip;
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name $server_ip _;
     return 301 https://\$host\$request_uri;
 }
 
 # HTTPS server block
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name $server_ip;
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
+    server_name $server_ip _;
     
     # SSL Configuration
     ssl_certificate $cert_dir/privatekonomi.crt;
@@ -1007,22 +950,6 @@ server {
         error_page 502 503 504 /50x.html;
     }
     
-    # Aspire Dashboard (optional - comment out in production)
-    location /aspire/ {
-        proxy_pass http://privatekonomi_dashboard/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection keep-alive;
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        
-        # Better error handling
-        proxy_intercept_errors on;
-        error_page 502 503 504 /50x.html;
-    }
-    
     # Error page
     location = /50x.html {
         root /usr/share/nginx/html;
@@ -1037,6 +964,13 @@ server {
     }
 }
 EOF
+    
+    # Disable default Nginx site to prevent welcome page from showing
+    if [ -f "/etc/nginx/sites-enabled/default" ] || [ -L "/etc/nginx/sites-enabled/default" ]; then
+        log_info "Inaktiverar Nginx standardsida..."
+        sudo rm -f /etc/nginx/sites-enabled/default
+        log_success "Nginx standardsida inaktiverad"
+    fi
     
     # Test and reload Nginx
     if sudo nginx -t; then
@@ -1129,17 +1063,16 @@ configure_firewall() {
     
     # Check if UFW is already configured with our ports
     local ufw_status=$(sudo ufw status 2>/dev/null || echo "inactive")
-    local has_dashboard=$(echo "$ufw_status" | grep -q "$DEFAULT_PORT" && echo "yes" || echo "no")
     local has_web=$(echo "$ufw_status" | grep -q "$WEB_PORT" && echo "yes" || echo "no")
     local has_api=$(echo "$ufw_status" | grep -q "$API_PORT" && echo "yes" || echo "no")
     
-    if [ "$has_dashboard" = "yes" ] && [ "$has_web" = "yes" ] && [ "$has_api" = "yes" ]; then
+    if [ "$has_web" = "yes" ] && [ "$has_api" = "yes" ]; then
         log_success "UFW är redan konfigurerat med alla Privatekonomi-portar"
-        sudo ufw status | grep -E "$DEFAULT_PORT|$WEB_PORT|$API_PORT"
+        sudo ufw status | grep -E "$WEB_PORT|$API_PORT"
         return 0
     fi
     
-    if [ "$has_dashboard" = "yes" ] || [ "$has_web" = "yes" ] || [ "$has_api" = "yes" ]; then
+    if [ "$has_web" = "yes" ] || [ "$has_api" = "yes" ]; then
         log_info "UFW är delvis konfigurerat. Saknade portar kommer att läggas till."
     fi
     
@@ -1153,12 +1086,6 @@ configure_firewall() {
     
     # Allow SSH first to avoid lockout
     sudo ufw allow ssh
-    
-    # Allow Aspire Dashboard
-    if [ "$has_dashboard" = "no" ]; then
-        sudo ufw allow $DEFAULT_PORT/tcp comment "Privatekonomi Aspire Dashboard"
-        log_info "Port $DEFAULT_PORT (Aspire Dashboard) öppnad"
-    fi
     
     # Allow Web application
     if [ "$has_web" = "no" ]; then
@@ -1187,32 +1114,40 @@ configure_firewall() {
     fi
 }
 
-# Create systemd service (optional)
+# Create systemd services for Web and API (optional)
 create_systemd_service() {
     if [ "$SKIP_SERVICE" = true ]; then
         log_info "Hoppar över systemd-tjänst (--no-service)"
         return 0
     fi
     
-    log_section "Skapar systemd-tjänst (valfritt)"
+    log_section "Skapar systemd-tjänster (valfritt)"
     
-    local service_file="/etc/systemd/system/${SERVICE_NAME}.service"
+    local web_service_file="/etc/systemd/system/privatekonomi-web.service"
+    local api_service_file="/etc/systemd/system/privatekonomi-api.service"
     
-    # Check if service already exists
-    if [ -f "$service_file" ]; then
-        log_info "Systemd-tjänst '$SERVICE_NAME' finns redan"
-        
-        if systemctl is-enabled "$SERVICE_NAME" &>/dev/null; then
-            log_success "Tjänsten är redan aktiverad"
-            
-            read -p "Vill du uppdatera tjänstekonfigurationen? (y/n): " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                return 0
-            fi
+    # Check if services already exist
+    local web_exists=false
+    local api_exists=false
+    
+    if [ -f "$web_service_file" ]; then
+        web_exists=true
+        log_info "Systemd-tjänst 'privatekonomi-web' finns redan"
+    fi
+    
+    if [ -f "$api_service_file" ]; then
+        api_exists=true
+        log_info "Systemd-tjänst 'privatekonomi-api' finns redan"
+    fi
+    
+    if [ "$web_exists" = true ] || [ "$api_exists" = true ]; then
+        read -p "Vill du uppdatera tjänstkonfigurationerna? (y/n): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            return 0
         fi
     else
-        read -p "Vill du skapa en systemd-tjänst för att starta Privatekonomi automatiskt? (y/n): " -n 1 -r
+        read -p "Vill du skapa systemd-tjänster för att starta Privatekonomi automatiskt? (y/n): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             return 0
@@ -1221,57 +1156,125 @@ create_systemd_service() {
     
     local user=$(whoami)
     local home_dir="$HOME"
-    local working_dir
-    local exec_command
     
     # Determine if using published binaries or dotnet run
-    if [ -d "$INSTALL_DIR/publish/AppHost" ] && [ -f "$INSTALL_DIR/publish/AppHost/Privatekonomi.AppHost" ]; then
-        working_dir="$INSTALL_DIR/publish/AppHost"
-        exec_command="$INSTALL_DIR/publish/AppHost/Privatekonomi.AppHost"
-        log_info "Använder publicerade binärer för systemd-tjänst"
+    local use_published=false
+    local web_working_dir
+    local web_exec_command
+    local api_working_dir
+    local api_exec_command
+    
+    if [ -d "$INSTALL_DIR/publish/Web" ] && [ -f "$INSTALL_DIR/publish/Web/Privatekonomi.Web" ]; then
+        use_published=true
+        web_working_dir="$INSTALL_DIR/publish/Web"
+        web_exec_command="$INSTALL_DIR/publish/Web/Privatekonomi.Web"
+        log_info "Använder publicerade binärer för Web-tjänst"
     else
-        working_dir="$INSTALL_DIR/src/Privatekonomi.AppHost"
-        exec_command="$home_dir/.dotnet/dotnet run --configuration Release"
-        log_info "Använder dotnet run för systemd-tjänst"
+        web_working_dir="$INSTALL_DIR/src/Privatekonomi.Web"
+        web_exec_command="$home_dir/.dotnet/dotnet run --configuration Release"
+        log_info "Använder dotnet run för Web-tjänst"
     fi
     
-    log_info "Skapar systemd-tjänst: $service_file"
+    if [ -d "$INSTALL_DIR/publish/Api" ] && [ -f "$INSTALL_DIR/publish/Api/Privatekonomi.Api" ]; then
+        use_published=true
+        api_working_dir="$INSTALL_DIR/publish/Api"
+        api_exec_command="$INSTALL_DIR/publish/Api/Privatekonomi.Api"
+        log_info "Använder publicerade binärer för API-tjänst"
+    else
+        api_working_dir="$INSTALL_DIR/src/Privatekonomi.Api"
+        api_exec_command="$home_dir/.dotnet/dotnet run --configuration Release"
+        log_info "Använder dotnet run för API-tjänst"
+    fi
     
-    sudo tee "$service_file" > /dev/null << EOF
+    # Create Web service
+    log_info "Skapar systemd-tjänst: $web_service_file"
+    
+    sudo tee "$web_service_file" > /dev/null << EOF
 [Unit]
-Description=Privatekonomi Personal Finance Application
+Description=Privatekonomi Web Application
 After=network.target
 
 [Service]
-Type=notify
+Type=simple
 User=$user
 Group=$user
-WorkingDirectory=$working_dir
+WorkingDirectory=$web_working_dir
 Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:$WEB_PORT
 Environment=PRIVATEKONOMI_ENVIRONMENT=RaspberryPi
 Environment=PRIVATEKONOMI_STORAGE_PROVIDER=Sqlite
 Environment=PRIVATEKONOMI_RASPBERRY_PI=true
-Environment=DOTNET_DASHBOARD_URLS=http://0.0.0.0:$DEFAULT_PORT
+Environment=PORT=$WEB_PORT
 Environment=DOTNET_ROOT=$home_dir/.dotnet
 Environment=PATH=$home_dir/.dotnet:$home_dir/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ExecStart=$exec_command
+ExecStart=$web_exec_command
 Restart=always
 RestartSec=10
-SyslogIdentifier=$SERVICE_NAME
+TimeoutStartSec=120
+TimeoutStopSec=30
+SyslogIdentifier=privatekonomi-web
 
 [Install]
 WantedBy=multi-user.target
 EOF
     
-    sudo systemctl daemon-reload
-    sudo systemctl enable "$SERVICE_NAME"
+    # Create API service
+    log_info "Skapar systemd-tjänst: $api_service_file"
     
-    log_success "Systemd-tjänst '$SERVICE_NAME' skapad och aktiverad"
-    log_info "Använd följande kommandon för att hantera tjänsten:"
-    echo -e "  ${YELLOW}sudo systemctl start $SERVICE_NAME${NC}   # Starta tjänsten"
-    echo -e "  ${YELLOW}sudo systemctl stop $SERVICE_NAME${NC}    # Stoppa tjänsten"
-    echo -e "  ${YELLOW}sudo systemctl status $SERVICE_NAME${NC}  # Kontrollera status"
-    echo -e "  ${YELLOW}journalctl -u $SERVICE_NAME -f${NC}       # Visa loggar"
+    sudo tee "$api_service_file" > /dev/null << EOF
+[Unit]
+Description=Privatekonomi API
+After=network.target
+
+[Service]
+Type=simple
+User=$user
+Group=$user
+WorkingDirectory=$api_working_dir
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:$API_PORT
+Environment=PRIVATEKONOMI_ENVIRONMENT=RaspberryPi
+Environment=PRIVATEKONOMI_STORAGE_PROVIDER=Sqlite
+Environment=PRIVATEKONOMI_RASPBERRY_PI=true
+Environment=PORT=$API_PORT
+Environment=DOTNET_ROOT=$home_dir/.dotnet
+Environment=PATH=$home_dir/.dotnet:$home_dir/.dotnet/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=$api_exec_command
+Restart=always
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=30
+SyslogIdentifier=privatekonomi-api
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Remove old single service if it exists
+    if [ -f "/etc/systemd/system/privatekonomi.service" ]; then
+        log_info "Tar bort gammal privatekonomi.service..."
+        sudo systemctl stop privatekonomi 2>/dev/null || true
+        sudo systemctl disable privatekonomi 2>/dev/null || true
+        sudo rm -f "/etc/systemd/system/privatekonomi.service"
+    fi
+    
+    sudo systemctl daemon-reload
+    sudo systemctl enable privatekonomi-web
+    sudo systemctl enable privatekonomi-api
+    
+    log_success "Systemd-tjänster skapade och aktiverade"
+    log_info "Använd följande kommandon för att hantera tjänsterna:"
+    echo -e "  ${YELLOW}sudo systemctl start privatekonomi-web${NC}     # Starta Web"
+    echo -e "  ${YELLOW}sudo systemctl start privatekonomi-api${NC}     # Starta API"
+    echo -e "  ${YELLOW}sudo systemctl stop privatekonomi-web${NC}      # Stoppa Web"
+    echo -e "  ${YELLOW}sudo systemctl stop privatekonomi-api${NC}      # Stoppa API"
+    echo -e "  ${YELLOW}sudo systemctl status privatekonomi-web${NC}    # Status Web"
+    echo -e "  ${YELLOW}sudo systemctl status privatekonomi-api${NC}    # Status API"
+    echo -e "  ${YELLOW}journalctl -u privatekonomi-web -f${NC}         # Loggar Web"
+    echo -e "  ${YELLOW}journalctl -u privatekonomi-api -f${NC}         # Loggar API"
+    echo ""
+    log_info "För att starta båda tjänsterna:"
+    echo -e "  ${YELLOW}sudo systemctl start privatekonomi-web privatekonomi-api${NC}"
 }
 
 # Create backup script and schedule
@@ -1528,39 +1531,28 @@ validate_network_config() {
         validation_passed=false
     fi
     
-    # Validate AppHost config
-    if [ -f "$apphost_config" ]; then
-        if grep -q '"Url".*"http://0.0.0.0:17127"' "$apphost_config"; then
-            log_success "AppHost konfiguration: Korrekt (lyssnar på 0.0.0.0:17127)"
-        else
-            log_warning "AppHost konfiguration: Kontrollera Kestrel-inställning"
-            validation_passed=false
-        fi
-    else
-        log_warning "AppHost konfiguration: Fil saknas"
-        validation_passed=false
-    fi
-    
     # Check network information
     local pi_ip=$(hostname -I | awk '{print $1}')
     if [ -n "$pi_ip" ]; then
         log_success "Raspberry Pi IP-adress: $pi_ip"
         echo ""
         echo -e "${BLUE}Åtkomst från andra enheter på nätverket:${NC}"
-        echo -e "  ${YELLOW}Direktåtkomst:${NC}"
-        echo -e "    http://$pi_ip:17127  (Aspire Dashboard)"
-        echo -e "    http://$pi_ip:5274   (Web App)"
-        echo -e "    http://$pi_ip:5277   (API)"
         
         if command -v nginx &> /dev/null && systemctl is-active --quiet nginx 2>/dev/null; then
-            echo -e ""
-            echo -e "  ${YELLOW}Via Nginx Proxy:${NC}"
+            echo -e "  ${YELLOW}Via Nginx Proxy (Rekommenderat):${NC}"
             echo -e "    http://$pi_ip        (Web App)"
+            echo -e "    http://$pi_ip/api    (API)"
             
             if ss -lntp 2>/dev/null | grep -q ":443 "; then
                 echo -e "    https://$pi_ip       (Web App med SSL)"
+                echo -e "    https://$pi_ip/api   (API med SSL)"
             fi
         fi
+        
+        echo -e ""
+        echo -e "  ${YELLOW}Direktåtkomst till tjänster:${NC}"
+        echo -e "    http://$pi_ip:5274   (Web App)"
+        echo -e "    http://$pi_ip:5277   (API)"
         echo ""
     else
         log_warning "Kunde inte fastställa IP-adress"
@@ -1572,7 +1564,7 @@ validate_network_config() {
         log_info "Kontrollerar brandväggsinställningar..."
         local firewall_ok=true
         
-        for port in 17127 5274 5277; do
+        for port in 5274 5277; do
             if sudo ufw status | grep -q "$port"; then
                 log_success "Port $port är öppen i brandväggen"
             else
@@ -1584,7 +1576,6 @@ validate_network_config() {
         if [ "$firewall_ok" = false ]; then
             echo ""
             echo -e "${YELLOW}Öppna portar med:${NC}"
-            echo "  sudo ufw allow 17127/tcp comment 'Privatekonomi Aspire'"
             echo "  sudo ufw allow 5274/tcp comment 'Privatekonomi Web'"
             echo "  sudo ufw allow 5277/tcp comment 'Privatekonomi API'"
             echo "  sudo ufw reload"
@@ -1616,31 +1607,34 @@ show_usage_info() {
     echo -e "    cd $INSTALL_DIR"
     echo -e "    ./raspberry-pi-start.sh"
     echo -e ""
-    echo -e "  ${YELLOW}Eller direkt med dotnet:${NC}"
-    echo -e "    cd $INSTALL_DIR/src/Privatekonomi.AppHost"
-    echo -e "    PRIVATEKONOMI_RASPBERRY_PI=true DOTNET_DASHBOARD_URLS=http://0.0.0.0:$DEFAULT_PORT dotnet run"
-    echo -e ""
     
-    if systemctl is-enabled "$SERVICE_NAME" &>/dev/null; then
-        echo -e "  ${YELLOW}Med systemd-tjänst:${NC}"
-        echo -e "    sudo systemctl start $SERVICE_NAME"
+    if systemctl is-enabled "privatekonomi-web" &>/dev/null; then
+        echo -e "  ${YELLOW}Med systemd-tjänster:${NC}"
+        echo -e "    sudo systemctl start privatekonomi-web privatekonomi-api"
         echo -e ""
     fi
     
     echo -e "${BLUE}Åtkomst till applikationen:${NC}"
     echo -e "  ${YELLOW}Lokalt (på Raspberry Pi):${NC}"
-    echo -e "    http://localhost:$DEFAULT_PORT (Aspire Dashboard)"
     echo -e "    http://localhost:$WEB_PORT (Web App)"
     echo -e "    http://localhost:$API_PORT (API)"
     echo -e ""
     echo -e "  ${YELLOW}Från andra enheter på nätverket:${NC}"
-    echo -e "    http://$pi_ip:$DEFAULT_PORT (Aspire Dashboard)"
-    echo -e "    http://$pi_ip:$WEB_PORT (Web App)"
-    echo -e "    http://$pi_ip:$API_PORT (API)"
+    
+    if command -v nginx &> /dev/null && systemctl is-active --quiet nginx 2>/dev/null; then
+        echo -e "    http://$pi_ip (Web App via Nginx)"
+        echo -e "    http://$pi_ip/api (API via Nginx)"
+    else
+        echo -e "    http://$pi_ip:$WEB_PORT (Web App)"
+        echo -e "    http://$pi_ip:$API_PORT (API)"
+    fi
     echo -e ""
     echo -e "${BLUE}Användbara kommandon:${NC}"
+    echo -e "  ${YELLOW}Kontrollera tjänster:${NC}"
+    echo -e "    sudo systemctl status privatekonomi-web privatekonomi-api"
+    echo -e ""
     echo -e "  ${YELLOW}Kontrollera portar:${NC}"
-    echo -e "    ss -lntp | grep '$DEFAULT_PORT\\|$WEB_PORT\\|$API_PORT'"
+    echo -e "    ss -lntp | grep '$WEB_PORT\\|$API_PORT'"
     echo -e ""
     echo -e "  ${YELLOW}Visa IP-adress:${NC}"
     echo -e "    hostname -I"
@@ -1648,7 +1642,7 @@ show_usage_info() {
     echo -e "  ${YELLOW}Uppdatera projekt:${NC}"
     echo -e "    cd $INSTALL_DIR"
     echo -e "    git pull origin main"
-    echo -e "    dotnet build --configuration Release"
+    echo -e "    ./raspberry-pi-install.sh"
     echo -e ""
     echo -e "  ${YELLOW}Manuell backup:${NC}"
     echo -e "    ~/scripts/backup-privatekonomi.sh"
@@ -1660,7 +1654,6 @@ show_usage_info() {
     echo -e "  • ${YELLOW}Privatekonomi.Api${NC} - Backend API"
     echo -e "  • ${YELLOW}Privatekonomi.Web${NC} - Blazor frontend"
     echo -e "  • ${YELLOW}Privatekonomi.Core${NC} - Kärnbibliotek"
-    echo -e "  • ${YELLOW}Privatekonomi.AppHost${NC} - Aspire-orkestrering"
     echo -e ""
     echo -e "${BLUE}Datakatalog:${NC}"
     echo -e "  • ${YELLOW}Data:${NC} $DATA_DIR"

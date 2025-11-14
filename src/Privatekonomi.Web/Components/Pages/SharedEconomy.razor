@@ -5,6 +5,7 @@
 @inject IHouseholdService HouseholdService
 @inject IBudgetService BudgetService
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Delad Ekonomi - @(household?.Name ?? "Hushåll")</PageTitle>
 
@@ -272,6 +273,7 @@ else
     [Parameter]
     public int HouseholdId { get; set; }
 
+    private string _userId = string.Empty;
     private Household? household;
     private List<Budget> sharedBudgets = new();
     private List<DebtSettlement> pendingDebts = new();
@@ -300,6 +302,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        
         await LoadData();
         
         breadcrumbs = new List<BreadcrumbItem>
@@ -360,6 +365,9 @@ else
                 newBudget.StartDate = budgetStartDate.Value;
                 newBudget.EndDate = budgetEndDate.Value;
             }
+            
+            // Set the user ID for ownership
+            newBudget.UserId = _userId;
             
             await HouseholdService.CreateSharedBudgetAsync(newBudget, budgetContributions);
             await LoadData();

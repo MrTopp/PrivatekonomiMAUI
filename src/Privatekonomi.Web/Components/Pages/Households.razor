@@ -42,7 +42,16 @@
                             <MudText Typo="Typo.h6">@household.Name</MudText>
                         </CardHeaderContent>
                         <CardHeaderActions>
-                            <MudIconButton Icon="@Icons.Material.Filled.MoreVert" Color="Color.Default" />
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Default" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                <MudMenuItem OnClick="@(() => OpenEditDialog(household))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Class="mr-2" Size="Size.Small" />
+                                    Redigera namn
+                                </MudMenuItem>
+                                <MudMenuItem OnClick="@(() => DeleteHousehold(household.HouseholdId))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Delete" Class="mr-2" Size="Size.Small" Color="Color.Error" />
+                                    <MudText Color="Color.Error">Ta bort</MudText>
+                                </MudMenuItem>
+                            </MudMenu>
                         </CardHeaderActions>
                     </MudCardHeader>
                     <MudCardContent>
@@ -63,9 +72,6 @@
                     <MudCardActions>
                         <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => ViewHousehold(household.HouseholdId))">
                             Visa detaljer
-                        </MudButton>
-                        <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="@(() => DeleteHousehold(household.HouseholdId))">
-                            Ta bort
                         </MudButton>
                     </MudCardActions>
                 </MudCard>
@@ -88,10 +94,26 @@
     </DialogActions>
 </MudDialog>
 
+<MudDialog @bind-Visible="showEditDialog" Options="dialogOptions">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Redigera hushåll</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="editHousehold.Name" Label="Namn" Required="true" />
+        <MudTextField @bind-Value="editHousehold.Description" Label="Beskrivning" Lines="3" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseEditDialog">Avbryt</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="UpdateHousehold">Spara</MudButton>
+    </DialogActions>
+</MudDialog>
+
 @code {
     private List<Household>? households;
     private bool showCreateDialog = false;
+    private bool showEditDialog = false;
     private Household newHousehold = new Household();
+    private Household editHousehold = new Household();
     private DialogOptions dialogOptions = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
 
     protected override async Task OnInitializedAsync()
@@ -124,6 +146,33 @@
         await HouseholdService.CreateHouseholdAsync(newHousehold);
         await LoadHouseholds();
         CloseCreateDialog();
+    }
+
+    private void OpenEditDialog(Household household)
+    {
+        editHousehold = new Household
+        {
+            HouseholdId = household.HouseholdId,
+            Name = household.Name,
+            Description = household.Description,
+            CreatedDate = household.CreatedDate
+        };
+        showEditDialog = true;
+    }
+
+    private void CloseEditDialog()
+    {
+        showEditDialog = false;
+    }
+
+    private async Task UpdateHousehold()
+    {
+        if (string.IsNullOrWhiteSpace(editHousehold.Name))
+            return;
+
+        await HouseholdService.UpdateHouseholdAsync(editHousehold);
+        await LoadHouseholds();
+        CloseEditDialog();
     }
 
     private void ViewHousehold(int householdId)

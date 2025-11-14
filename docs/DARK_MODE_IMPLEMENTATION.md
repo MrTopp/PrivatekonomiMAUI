@@ -13,8 +13,10 @@ Dark mode är implementerat enligt [MudBlazor Dark Mode Documentation](https://m
 **Placering:** `src/Privatekonomi.Web/Components/Layout/MainLayout.razor`
 
 ```razor
-<MudThemeProvider @ref="@_mudThemeProvider" Theme="@_theme" @bind-IsDarkMode="@_isDarkMode" />
+<MudThemeProvider @ref="@_mudThemeProvider" Theme="@_theme" IsDarkMode="@_isDarkMode" />
 ```
+
+**OBS:** Vi använder envägs-binding (`IsDarkMode`) istället för tvåvägs-binding (`@bind-IsDarkMode`) för att förhindra att MudBlazor skriver över vår sparade tema-preferens. Detta är särskilt viktigt för att undvika race conditions vid sidladdning på Safari/iOS.
 
 ### 2. System Preference Detection
 

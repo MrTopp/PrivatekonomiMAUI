@@ -27,6 +27,39 @@ public class HouseholdServiceTests : IDisposable
         _context.Dispose();
     }
 
+    #region Household CRUD Tests
+
+    [Fact]
+    public async Task UpdateHouseholdAsync_UpdatesHouseholdSuccessfully()
+    {
+        // Arrange
+        var household = new Household 
+        { 
+            Name = "Original Name",
+            Description = "Original Description"
+        };
+        var created = await _householdService.CreateHouseholdAsync(household);
+
+        // Act
+        created.Name = "Updated Name";
+        created.Description = "Updated Description";
+        var updated = await _householdService.UpdateHouseholdAsync(created);
+
+        // Assert
+        Assert.NotNull(updated);
+        Assert.Equal("Updated Name", updated.Name);
+        Assert.Equal("Updated Description", updated.Description);
+        Assert.Equal(created.HouseholdId, updated.HouseholdId);
+
+        // Verify the update persisted
+        var retrieved = await _householdService.GetHouseholdByIdAsync(created.HouseholdId);
+        Assert.NotNull(retrieved);
+        Assert.Equal("Updated Name", retrieved.Name);
+        Assert.Equal("Updated Description", retrieved.Description);
+    }
+
+    #endregion
+
     #region Activity Tests
 
     [Fact]
@@ -391,6 +424,180 @@ public class HouseholdServiceTests : IDisposable
         Assert.True(result);
         var tasks = await _householdService.GetTasksAsync(household.HouseholdId);
         Assert.Empty(tasks);
+    }
+
+    #endregion
+
+    #region Shared Budget Tests
+
+    [Fact]
+    public async Task CreateSharedBudgetAsync_CreatesSharedBudgetSuccessfully()
+    {
+        // Arrange
+        var household = new Household { Name = "Test Household" };
+        _context.Households.Add(household);
+        
+        var member1 = new HouseholdMember
+        {
+            HouseholdId = household.HouseholdId,
+            Name = "Member 1",
+            IsActive = true
+        };
+        var member2 = new HouseholdMember
+        {
+            HouseholdId = household.HouseholdId,
+            Name = "Member 2",
+            IsActive = true
+        };
+        _context.HouseholdMembers.Add(member1);
+        _context.HouseholdMembers.Add(member2);
+        await _context.SaveChangesAsync();
+
+        var budget = new Budget
+        {
+            Name = "Test Budget",
+            Description = "Test shared budget",
+            HouseholdId = household.HouseholdId,
+            StartDate = DateTime.Now,
+            EndDate = DateTime.Now.AddMonths(1),
+            Period = BudgetPeriod.Monthly,
+            UserId = "test-user-id"
+        };
+
+        var contributions = new Dictionary<int, decimal>
+        {
+            { member1.HouseholdMemberId, 60m },
+            { member2.HouseholdMemberId, 40m }
+        };
+
+        // Act
+        var result = await _householdService.CreateSharedBudgetAsync(budget, contributions);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal("Test Budget", result.Name);
+        Assert.Equal(household.HouseholdId, result.HouseholdId);
+        Assert.Equal("test-user-id", result.UserId);
+        
+        // Verify budget shares were created
+        var shares = await _context.HouseholdBudgetShares
+            .Where(s => s.BudgetId == result.BudgetId)
+            .ToListAsync();
+        Assert.Equal(2, shares.Count);
+        Assert.Contains(shares, s => s.HouseholdMemberId == member1.HouseholdMemberId && s.SharePercentage == 60m);
+        Assert.Contains(shares, s => s.HouseholdMemberId == member2.HouseholdMemberId && s.SharePercentage == 40m);
+    }
+
+    [Fact]
+    public async Task CreateSharedBudgetAsync_ThrowsWhenContributionsDontSumTo100()
+    {
+        // Arrange
+        var household = new Household { Name = "Test Household" };
+        _context.Households.Add(household);
+        
+        var member1 = new HouseholdMember
+        {
+            HouseholdId = household.HouseholdId,
+            Name = "Member 1",
+            IsActive = true
+        };
+        var member2 = new HouseholdMember
+        {
+            HouseholdId = household.HouseholdId,
+            Name = "Member 2",
+            IsActive = true
+        };
+        _context.HouseholdMembers.Add(member1);
+        _context.HouseholdMembers.Add(member2);
+        await _context.SaveChangesAsync();
+
+        var budget = new Budget
+        {
+            Name = "Test Budget",
+            HouseholdId = household.HouseholdId,
+            StartDate = DateTime.Now,
+            EndDate = DateTime.Now.AddMonths(1),
+            Period = BudgetPeriod.Monthly,
+            UserId = "test-user-id"
+        };
+
+        var contributions = new Dictionary<int, decimal>
+        {
+            { member1.HouseholdMemberId, 60m },
+            { member2.HouseholdMemberId, 30m } // Total is 90%, not 100%
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _householdService.CreateSharedBudgetAsync(budget, contributions)
+        );
+        Assert.Contains("must sum to 100%", exception.Message);
+    }
+
+    [Fact]
+    public async Task CreateSharedBudgetAsync_ThrowsWhenHouseholdIdIsNull()
+    {
+        // Arrange
+        var budget = new Budget
+        {
+            Name = "Test Budget",
+            HouseholdId = null, // No household ID
+            StartDate = DateTime.Now,
+            EndDate = DateTime.Now.AddMonths(1),
+            Period = BudgetPeriod.Monthly,
+            UserId = "test-user-id"
+        };
+
+        var contributions = new Dictionary<int, decimal>();
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _householdService.CreateSharedBudgetAsync(budget, contributions)
+        );
+        Assert.Contains("must be associated with a household", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetHouseholdBudgetsAsync_ReturnsHouseholdBudgets()
+    {
+        // Arrange
+        var household = new Household { Name = "Test Household" };
+        _context.Households.Add(household);
+        
+        var member = new HouseholdMember
+        {
+            HouseholdId = household.HouseholdId,
+            Name = "Member 1",
+            IsActive = true
+        };
+        _context.HouseholdMembers.Add(member);
+        await _context.SaveChangesAsync();
+
+        var budget = new Budget
+        {
+            Name = "Test Budget",
+            HouseholdId = household.HouseholdId,
+            StartDate = DateTime.Now,
+            EndDate = DateTime.Now.AddMonths(1),
+            Period = BudgetPeriod.Monthly,
+            UserId = "test-user-id"
+        };
+
+        var contributions = new Dictionary<int, decimal>
+        {
+            { member.HouseholdMemberId, 100m }
+        };
+
+        await _householdService.CreateSharedBudgetAsync(budget, contributions);
+
+        // Act
+        var result = await _householdService.GetHouseholdBudgetsAsync(household.HouseholdId);
+
+        // Assert
+        var budgets = result.ToList();
+        Assert.Single(budgets);
+        Assert.Equal("Test Budget", budgets[0].Name);
+        Assert.NotEmpty(budgets[0].HouseholdBudgetShares);
     }
 
     #endregion

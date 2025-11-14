@@ -650,6 +650,39 @@ sudo journalctl -u privatekonomi --since "1 hour ago"
 sudo journalctl -u privatekonomi > ~/privatekonomi-logs.txt
 ```
 
+### CSV Import "Connection refused" fel
+
+Om du får ett felmeddelande "Connection refused (localhost:7023)" när du försöker importera CSV-filer:
+
+**Orsak:** Web-applikationen kan inte nå API-tjänsten.
+
+**Lösning:**
+1. Kontrollera att både Web och API tjänsterna körs:
+   ```bash
+   # Kontrollera vilka processer som lyssnar på port 5277 (API)
+   sudo netstat -tuln | grep 5277
+   
+   # Kontrollera vilka processer som lyssnar på port 5274 (Web)
+   sudo netstat -tuln | grep 5274
+   ```
+
+2. Verifiera API-konfigurationen i `appsettings.Production.json`:
+   ```json
+   {
+     "ApiSettings": {
+       "BaseUrl": "http://localhost:5277"
+     }
+   }
+   ```
+
+3. Starta om båda tjänsterna:
+   ```bash
+   cd ~/Privatekonomi
+   ./raspberry-pi-start.sh
+   ```
+
+**OBS:** Sedan version 0.0.4+ är detta problem automatiskt åtgärdat genom korrekt konfiguration av API-URL:er.
+
 ## Säkerhet
 
 ### 1. Uppdatera regelbundet

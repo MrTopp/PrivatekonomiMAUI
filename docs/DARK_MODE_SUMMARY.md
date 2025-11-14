@@ -125,7 +125,7 @@
 
 Implementationen följer [MudBlazor Dark Mode Documentation](https://mudblazor.com/features/darkmode):
 
-1. ✅ Använder `MudThemeProvider` med `@bind-IsDarkMode`
+1. ✅ Använder `MudThemeProvider` med `IsDarkMode` (envägs-binding för att förhindra race conditions)
 2. ✅ Definierar custom `PaletteDark`
 3. ✅ Använder `GetSystemDarkModeAsync()` för system preference
 4. ✅ Persisterar tema-val mellan sessioner

@@ -23,10 +23,16 @@ if (builder.Environment.IsDevelopment() || string.Equals(builder.Environment.Env
 var isRaspberryPi = Environment.GetEnvironmentVariable("PRIVATEKONOMI_RASPBERRY_PI") == "true";
 if (isRaspberryPi)
 {
-    // Explicitly configure Kestrel to listen on 0.0.0.0 for network access
-    // This overrides any localhost-only bindings from Aspire
-    var port = Environment.GetEnvironmentVariable("PORT") ?? "5274";
-    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+    // When running under Aspire, it manages the ports via WithHttpEndpoint
+    // But Aspire binds to localhost by default, so we need to override this
+    // We configure Kestrel AFTER AddServiceDefaults to ensure our binding takes precedence
+    builder.WebHost.ConfigureKestrel(serverOptions =>
+    {
+        // Listen on all network interfaces (0.0.0.0) for Raspberry Pi network access
+        // Get port from Aspire's PORT env var, or fall back to configuration, or default to 5274
+        var port = int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var p) ? p : 5274;
+        serverOptions.ListenAnyIP(port);
+    });
 }
 
 // Configure Swedish culture as default
@@ -170,22 +176,25 @@ builder.Services.AddScoped<IISKTaxCalculator, ISKTaxCalculator>();
 // Register bank API services and dependencies
 builder.Services.AddBankApiServices(builder.Configuration);
 
-// Add HttpClient for API calls (if needed later) using Aspire service discovery
+// Add HttpClient for API calls
 builder.Services.AddHttpClient("api", client =>
 {
-    // Aspire will configure this automatically through service discovery
-
-    // // This will be configured by Aspire service discovery
-    // client.BaseAddress = new Uri(builder.Configuration["services:api:http:0"] ?? "http://localhost:5001");
+    // Configure API base address based on environment
+    // Aspire will override this through service discovery when running with AppHost
+    // For Raspberry Pi and standalone deployments, use configuration
+    var apiBaseUrl = builder.Configuration["ApiSettings:BaseUrl"] 
+        ?? builder.Configuration["services:api:http:0"] 
+        ?? "http://localhost:5277";
+    
+    client.BaseAddress = new Uri(apiBaseUrl);
 });
 
-// Configure default HttpClient 
+// Configure default HttpClient to use the API client configuration
 builder.Services.AddScoped<HttpClient>(sp =>
 {
     var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-    return httpClientFactory.CreateClient();
-    //// to use the API base address
-    //return httpClientFactory.CreateClient("api");
+    // Use the configured "api" client as the default
+    return httpClientFactory.CreateClient("api");
 });
 
 // Register stock price service with HttpClient
