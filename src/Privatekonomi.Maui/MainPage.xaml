@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Privatekonomi.Maui.MainPage"
+             Title="Oversikt">
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="12">
+            <Label Text="Privatekonomi" FontSize="28" FontAttributes="Bold" />
+            <Label Text="Offline lage - lokal data" FontSize="14" TextColor="Gray" />
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                <Frame Grid.ColumnSpan="2" Padding="12" BackgroundColor="#eef" CornerRadius="8">
+                    <VerticalStackLayout>
+                        <Label Text="Senaste transaktioner" FontAttributes="Bold" />
+                        <CollectionView x:Name="RecentTransactions" HeightRequest="180">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" Padding="4">
+                                        <Label Text="{Binding Date, StringFormat='{}{0:yyyy-MM-dd}'}" />
+                                        <Label Grid.Column="1" Text="{Binding Description}" LineBreakMode="TailTruncation" />
+                                        <Label Grid.Column="2" Text="{Binding Amount}" HorizontalTextAlignment="End" />
+                                    </Grid>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Frame>
+                <Frame Grid.Row="1" Padding="12" BackgroundColor="#efe" CornerRadius="8" Margin="0,8,8,0">
+                    <VerticalStackLayout>
+                        <Label Text="Aktiva mal" FontAttributes="Bold" />
+                        <CollectionView x:Name="ActiveGoals" HeightRequest="140">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate>
+                                    <VerticalStackLayout>
+                                        <Label Text="{Binding Name}" />
+                                        <ProgressBar Progress="{Binding ProgressPercentage}" />
+                                    </VerticalStackLayout>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </VerticalStackLayout>
+                </Frame>
+                <Frame Grid.Row="1" Grid.Column="1" Padding="12" BackgroundColor="#fee" CornerRadius="8" Margin="8,8,0,0">
+                    <VerticalStackLayout>
+                        <Label Text="Budget (manad)" FontAttributes="Bold" />
+                        <Label x:Name="BudgetSummary" />
+                    </VerticalStackLayout>
+                </Frame>
+                <Frame Grid.Row="2" Grid.ColumnSpan="2" Padding="12" BackgroundColor="#fef" CornerRadius="8" Margin="0,8,0,0">
+                    <VerticalStackLayout>
+                        <Label Text="Snabblankar" FontAttributes="Bold" />
+                        <HorizontalStackLayout Spacing="8">
+                            <Button Text="Transaktioner" Clicked="OnTransactions" />
+                            <Button Text="Budget" Clicked="OnBudget" />
+                            <Button Text="Mal" Clicked="OnGoals" />
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Frame>
+            </Grid>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

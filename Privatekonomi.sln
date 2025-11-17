@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11206.111 d18.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
@@ -20,6 +20,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Privatekonomi.Core.Tests", "tests\Privatekonomi.Core.Tests\Privatekonomi.Core.Tests.csproj", "{5A888D36-2C1F-425E-B564-C1590463258E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Privatekonomi.Api.Tests", "tests\Privatekonomi.Api.Tests\Privatekonomi.Api.Tests.csproj", "{6F2F1F04-5B48-47E7-A715-2DA825D7A0CD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Privatekonomi.Maui", "src\Privatekonomi.Maui\Privatekonomi.Maui.csproj", "{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -115,6 +117,18 @@ Global
 		{6F2F1F04-5B48-47E7-A715-2DA825D7A0CD}.Release|x64.Build.0 = Release|Any CPU
 		{6F2F1F04-5B48-47E7-A715-2DA825D7A0CD}.Release|x86.ActiveCfg = Release|Any CPU
 		{6F2F1F04-5B48-47E7-A715-2DA825D7A0CD}.Release|x86.Build.0 = Release|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Debug|x64.Build.0 = Debug|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Debug|x86.Build.0 = Debug|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Release|x64.ActiveCfg = Release|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Release|x64.Build.0 = Release|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Release|x86.ActiveCfg = Release|Any CPU
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -127,5 +141,6 @@ Global
 		{88E5AE04-CD00-4997-B2B5-51AEF287447C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{5A888D36-2C1F-425E-B564-C1590463258E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{6F2F1F04-5B48-47E7-A715-2DA825D7A0CD} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{DA00177E-39EE-CFA9-6FFC-B1822D3CA53B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

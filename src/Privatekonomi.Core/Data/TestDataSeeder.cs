@@ -41,6 +41,55 @@ public static class TestDataSeeder
         SeedNotifications(context, testUserId);
     }
     
+    // Offline MAUI variant without identity password creation (uses or creates simple user)
+    public static string SeedTestDataOffline(PrivatekonomyContext context)
+    {
+        if (context.Transactions.Any())
+        {
+            return context.Users.First().Id;
+        }
+        var user = new ApplicationUser
+        {
+            UserName = "offline@example.com",
+            Email = "offline@example.com",
+            FirstName = "Offline",
+            LastName = "User",
+            EmailConfirmed = true,
+            CreatedAt = DateTime.UtcNow,
+            IsSystemAdmin = true
+        };
+        context.Users.Add(user);
+        context.SaveChanges();
+        SeedAll(context, user.Id);
+        return user.Id;
+    }
+
+    private static void SeedAll(PrivatekonomyContext context, string testUserId)
+    {
+        SeedTransactions(context, testUserId);
+        SeedInvestments(context, testUserId);
+        SeedAssets(context, testUserId);
+        SeedLoans(context, testUserId);
+        SeedBudgets(context, testUserId);
+        SeedCategoryRules(context);
+        SeedHouseholds(context);
+        SeedGoals(context, testUserId);
+        SeedSalaryHistory(context, testUserId);
+        SeedNetWorthSnapshots(context, testUserId);
+        SeedPockets(context, testUserId);
+        SeedChallengeTemplates(context);
+        SeedSubscriptions(context, testUserId);
+        SeedBills(context, testUserId);
+        SeedBillReminders(context, testUserId);
+        SeedPensions(context, testUserId);
+        SeedDividends(context, testUserId);
+        SeedInvestmentTransactions(context, testUserId);
+        SeedSavingsChallenges(context, testUserId);
+        SeedCurrencyAccounts(context, testUserId);
+        SeedLifeTimelineMilestones(context, testUserId);
+        SeedNotifications(context, testUserId);
+    }
+    
     private static async Task<string> SeedUsers(UserManager<ApplicationUser> userManager)
     {
         // Create a test user
@@ -2968,7 +3017,7 @@ public static class TestDataSeeder
                 Date = DateTime.UtcNow.AddDays(-12),
                 Completed = true,
                 AmountSaved = 100m,
-                Notes = "En vecka klar",
+                Notes = "En vecka klarat",
                 CreatedAt = DateTime.UtcNow
             }
         };
@@ -3163,7 +3212,7 @@ public static class TestDataSeeder
                 UserId = userId,
                 Type = SystemNotificationType.BillDue,
                 Title = "Påminnelse: Netflix Premium",
-                Message = "Räkning på 139 kr förfaller 2025-11-10",
+                Message = "Räkning på 139 kr förfaller snart",
                 IsRead = false,
                 Channel = NotificationChannel.InApp,
                 Priority = NotificationPriority.Normal,
@@ -3182,7 +3231,7 @@ public static class TestDataSeeder
                 UserId = userId,
                 Type = SystemNotificationType.BillOverdue,
                 Title = "⚠️ BRÅDSKANDE: Betala Interneträkning",
-                Message = "Räkningen på 399 kr förföll för 8 dagar sedan. Åtgärd krävs omedelbart! (Snoozad 2 gånger)",
+                Message = "Räkningen på 399 kr förföll för 8 dagar sedan. Åtgärd krävs omedelbart!",
                 IsRead = false,
                 Channel = NotificationChannel.InApp,
                 Priority = NotificationPriority.Critical,
@@ -3193,10 +3242,27 @@ public static class TestDataSeeder
                 CreatedAt = DateTime.UtcNow.AddDays(-15)
             },
             
-            // Notification 5: Escalation level 2 - Rent (BillReminder 6)
+            // Notification 5: Escalation level 1 - 1 day overdue (Bill 1 - second reminder)
             new Notification
             {
                 NotificationId = 5,
+                UserId = userId,
+                Type = SystemNotificationType.BillDue,
+                Title = "Påminnelse: Elräkning",
+                Message = "Räkning på 1,450 kr förfaller om 11 dagar",
+                IsRead = false,
+                Channel = NotificationChannel.InApp,
+                Priority = NotificationPriority.Normal,
+                ActionUrl = "/economy/bills/1",
+                BillReminderId = 5,
+                SentAt = DateTime.UtcNow.AddDays(-1),
+                CreatedAt = DateTime.UtcNow.AddDays(-1)
+            },
+            
+            // Notification 6: Escalation level 2 - 3 days, high priority (Bill 6 - second reminder)
+            new Notification
+            {
+                NotificationId = 6,
                 UserId = userId,
                 Type = SystemNotificationType.BillDue,
                 Title = "⚠️ BRÅDSKANDE: Hyra",
@@ -3210,10 +3276,10 @@ public static class TestDataSeeder
                 CreatedAt = DateTime.UtcNow.AddDays(-3)
             },
             
-            // Notification 6: Completed/Read - Mobile bill (BillReminder 7)
+            // Notification 7: Completed/Read - Mobile bill (BillReminder 7)
             new Notification
             {
-                NotificationId = 6,
+                NotificationId = 7,
                 UserId = userId,
                 Type = SystemNotificationType.BillDue,
                 Title = "Påminnelse: Mobilabonnemang",
@@ -3228,10 +3294,10 @@ public static class TestDataSeeder
                 CreatedAt = DateTime.UtcNow.AddDays(-8)
             },
             
-            // Notification 7: Warning - Snoozed 3 times - Spotify (BillReminder 8)
+            // Notification 8: Warning - Snoozed 3 times - Spotify (BillReminder 8)
             new Notification
             {
-                NotificationId = 7,
+                NotificationId = 8,
                 UserId = userId,
                 Type = SystemNotificationType.BillDue,
                 Title = "Påminnelse: Spotify Family",
@@ -3247,10 +3313,10 @@ public static class TestDataSeeder
                 CreatedAt = DateTime.UtcNow.AddDays(-12)
             },
             
-            // Notification 8: Recent - Home insurance (BillReminder 9)
+            // Notification 9: Recent - Home insurance (BillReminder 9)
             new Notification
             {
-                NotificationId = 8,
+                NotificationId = 9,
                 UserId = userId,
                 Type = SystemNotificationType.BillDue,
                 Title = "Påminnelse: Hemförsäkring",
@@ -3264,10 +3330,10 @@ public static class TestDataSeeder
                 CreatedAt = DateTime.UtcNow.AddHours(-6)
             },
             
-            // Notification 9: Goal achieved (not bill related)
+            // Notification 10: Goal achieved (not bill related)
             new Notification
             {
-                NotificationId = 9,
+                NotificationId = 10,
                 UserId = userId,
                 Type = SystemNotificationType.GoalAchieved,
                 Title = "Grattis! Sparmål uppnått",
@@ -3280,10 +3346,10 @@ public static class TestDataSeeder
                 CreatedAt = DateTime.UtcNow.AddHours(-5)
             },
             
-            // Notification 10: Subscription renewal (not bill related)
+            // Notification 11: Subscription renewal (not bill related)
             new Notification
             {
-                NotificationId = 10,
+                NotificationId = 11,
                 UserId = userId,
                 Type = SystemNotificationType.SubscriptionRenewal,
                 Title = "Prenumeration förnyas snart",
@@ -3297,10 +3363,10 @@ public static class TestDataSeeder
                 CreatedAt = DateTime.UtcNow.AddDays(-3)
             },
             
-            // Notification 11: Budget warning (not bill related)
+            // Notification 12: Budget warning (not bill related)
             new Notification
             {
-                NotificationId = 11,
+                NotificationId = 12,
                 UserId = userId,
                 Type = SystemNotificationType.BudgetWarning,
                 Title = "Budgetvarning",
